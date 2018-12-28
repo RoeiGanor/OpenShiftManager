@@ -1,0 +1,17 @@
+{
+"peoples":
+[
+	{
+	"name": "A",
+	"phone": "123465",
+	"constraints": [1,5,9],
+	"count": 0
+	},
+	{
+	"name": "B",
+	"phone": "1455",
+	"constraints": [0,3,7,20],
+	"count": 0
+	}
+]
+}

@@ -1,4 +1,4 @@
-import calendar,datetime,json,os
+import calendar,datetime,json,os,copy,random
 
 
 # The precentage of all days in month that it fair to have difference between
@@ -6,6 +6,14 @@ import calendar,datetime,json,os
 global fairnessLevel
 fairnessLevel = 10
 
+global NIGHT_TIME
+NIGHT_TIME = 20
+
+global placement
+placement = {}
+
+global unresolveCount
+unresolveCount = 0
 
 # TODO: Implement days and weekend in the init function
 def initializeDays():
@@ -23,7 +31,23 @@ def initializeDays():
 
     # Datetime.date with isoweekday start with monday = 0
     global days
-    days = [datetime.date(year,month,day) for day in range(1,daysRange[1] + 1)]
+    dayArray = [datetime.datetime(year,month,day) for day in range(1,daysRange[1] + 1)]
+    days = []
+
+    for day in dayArray:
+        # Weekend
+        if(day.weekday() in [4,5]):
+            days.append(day)
+        else:
+            morningShift = copy.deepcopy(day)
+            nightShift = copy.deepcopy(day)
+            morningShift = morningShift.replace(hour=8)
+            nightShift = nightShift.replace(hour=20)
+
+            days.append(morningShift)
+            days.append(nightShift)
+
+    print(days) # DEBUG
 
 # Load the constraints file
 def getConstraints():
@@ -36,13 +60,18 @@ def getConstraints():
 def recursiveBackTracking(day,index):
     print(day.day)
     i = 0
+
+    random.shuffle(peoples)
+
     while(i < len(peoples)):
         print(peoples[i]["name"])
         isPlaceable = canBePlaced(day,peoples[i])
         print(""+str(isPlaceable) + " " + str(day.day) + " " + peoples[i]["name"])
         if(isPlaceable):
 
-            placement.append(peoples[i]["name"])
+            temp = copy.deepcopy(peoples[i])
+            #placement[day] = peoples[i]
+            placement[day] = temp
 
             peoples[i]["count"] +=1
 
@@ -50,15 +79,19 @@ def recursiveBackTracking(day,index):
             if(index + 1 < len(days)):
                 index += 1
                 answer = recursiveBackTracking(days[index],index)
-                if(answer):
+                if answer:
                     return answer
             else:
                 return True
         i += 1
     if(i >= len(peoples)):
-        print("Finish")
+          placement[day] = "Unresolved"
+          unresolveCount = 0
+          if(index + 1 < len(days)):
+                index += 1
+                return recursiveBackTracking(days[index],index)
 
-    return(False)
+    return False
 
 # Check if people can be place in this day
 def canBePlaced(day,people):
@@ -74,6 +107,12 @@ def canBePlaced(day,people):
     # then the difference between you and the lowest can be 3 days.
     minPlacement = getMinimum()
     if(people["count"] > (daysRange[1]/fairnessLevel + minPlacement)):
+        return False
+
+    if(day.hour == NIGHT_TIME and people["canNights"] == "False"):
+        return False
+
+    if(day.weekday() in [4,5] and people["canWeekend"] == "False"):
         return False
 
     return True
@@ -94,13 +133,17 @@ if __name__ == '__main__':
     getConstraints()
     peoples = peoples["peoples"]
 
-    global placement
-
-    placement = []
     index = 0
 
     recursiveBackTracking(days[index],index)
-    print(placement)
+
+    for day in days:
+        print("" + str(day) + "\/ " + str(placement[day]))
+
+    print("kader Points")
+
+    for people in peoples:
+        print(people["name"] + ":" + str(people["count"]))
 
 
     

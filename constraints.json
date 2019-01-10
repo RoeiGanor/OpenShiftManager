@@ -2,16 +2,52 @@
 "peoples":
 [
 	{
-	"name": "A",
+	"name": "Alpha",
 	"phone": "123465",
 	"constraints": [1,5,9],
-	"count": 0
+	"count": 0,
+	"canNights": "True",
+	"canWeekend": "False"
 	},
 	{
-	"name": "B",
+	"name": "Beta",
 	"phone": "1455",
-	"constraints": [0,3,7,20],
-	"count": 0
+	"constraints": [16,19,22],
+	"count": 0,
+	"canNights": "False",
+	"canWeekend": "False"
+	},
+	{
+	"name": "Gamma",
+	"phone": "1455",
+	"constraints": [29],
+	"count": 0,
+	"canNights": "False",
+	"canWeekend": "True"
+	},
+	{
+	"name": "Delta",
+	"phone": "1455",
+	"constraints": [16],
+	"count": 0,
+	"canNights": "True",
+	"canWeekend": "True"
+	},
+	{
+	"name": "epsilon",
+	"phone": "1455",
+	"constraints": [],
+	"count": 0,
+	"canNights": "True",
+	"canWeekend": "True"
+	},
+	{
+	"name": "zeta",
+	"phone": "1455",
+	"constraints": [5,11,28],
+	"count": 0,
+	"canNights": "True",
+	"canWeekend": "True"
 	}
 ]
 }

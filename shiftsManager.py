@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import calendar
 import datetime
 import json
@@ -10,7 +11,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from httplib2 import Http
 from oauth2client import file, client, tools
 
-SCOPES = 'https://www.googleapis.com/auth/drive'
+SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/calendar']
 
 # The precentage of all days in month that it fair to have difference between
 # you and the minimal placement people
@@ -64,7 +65,6 @@ def initializeDays():
 
             days.append(morningShift)
             days.append(nightShift)
-
 
 def getShiftScore(shift):
     score = SHIFT_POINTS[0]
@@ -133,8 +133,6 @@ def canBePlaced(day, people):
 
     return True
 
-    # return day.day not in people["constraints"]
-
 # Get the lowest placement count
 def getMinimum():
     min = daysRange[1] + 1
@@ -164,9 +162,9 @@ def getConstraintsFromDrive():
         print "Download %d%%." % int(status.progress() * 100)
 
     csvf = fh.getvalue()
-    rows = csvf.split("\n")
+    rows = csvf.split("\r\n")
     
-    COLS = ["name","phone","mail","canWeekend","canNights","constraints","count"]
+    COLS = rows[0].split(",")
     global CONSTRAINTS
     CONSTRAINTS = {"peoples": []}
     for i in xrange(1,len(rows)):
@@ -176,15 +174,56 @@ def getConstraintsFromDrive():
             if COLS[col] == "constraints":
                 CONSTRAINTS["peoples"][i - 1][COLS[col]] = row.split(",")[col].split(" ")
                 constraintsLength = len(CONSTRAINTS["peoples"][i - 1][COLS[col]])
-                CONSTRAINTS["peoples"][i - 1][COLS[col]][constraintsLength - 1] = int(CONSTRAINTS["peoples"][i - 1][COLS[col]][constraintsLength - 1].split("\r")[0])
                 CONSTRAINTS["peoples"][i - 1][COLS[col]] = map(int,CONSTRAINTS["peoples"][i - 1][COLS[col]])
             elif COLS[col] == "count":
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = int(row.split(",")[col].split("\r")[0])
+                CONSTRAINTS["peoples"][i - 1][COLS[col]] = int(row.split(",")[col])
             else:
                 CONSTRAINTS["peoples"][i - 1][COLS[col]] = row.split(",")[col]
 
     print(CONSTRAINTS)
-    
+
+def sendInvite(bestRun):
+    store = file.Storage('token.json')
+    creds = store.get()
+    if not creds or creds.invalid:
+        flow = client.flow_from_clientsecrets('credentials.json', SCOPES)
+        creds = tools.run_flow(flow, store)
+    service = build('calendar', 'v3', http=creds.authorize(Http()))
+
+    shiftsSummary = ['תורנות בוקר','תורנות לילה','תורנות שבת']
+
+    for dayIndex in xrange(len(days) - 1):
+        if bestRun['placements'][days[dayIndex]] != 'Unresolved':
+            if "@" in bestRun['placements'][days[dayIndex]]['email']:
+                eventObj = {}
+                eventObj["start"] = {"dateTime": getDateString(days[dayIndex]),"timeZone": "Asia/Jerusalem"}
+                eventObj["end"] = {}
+                eventObj["end"] = {"dateTime": getDateString(days[dayIndex + 1]),"timeZone": "Asia/Jerusalem"}
+                eventObj["attendees"] = [{"email":bestRun['placements'][days[dayIndex]]['email']}]
+                eventObj["summary"] = shiftsSummary[getEventType(days[dayIndex])]
+
+                output = service.events().insert(calendarId='primary', body=eventObj).execute()
+
+def getEventType(day):
+    if day.weekday() in [4,5]:
+        return 2
+    if str(day.hour) == '20':
+        return 1
+    if str(day.hour) == '8':
+        return 0
+
+def getDateString(date):
+    hour = str(date.hour)
+    day = str(date.day)
+    month = str(date.month)
+    if hour == "8":
+        hour = "08"
+    if len(day) == 1:
+        day = "0" + day
+    if len(month) == 1:
+        month = "0" + month
+    return str(date.year) + "-" + month + "-" + day + "T" + hour + ":00:00"
+
 if __name__ == '__main__':
     initializeDays()
     getConstraintsFromDrive()
@@ -214,4 +253,6 @@ if __name__ == '__main__':
 
     print("#######################")
     for people in bestRun["peoples"]:
-        print(people["name"] + ":" + str(people["count"]))
+        print(people["Name"] + ":" + str(people["count"]))
+    
+    sendInvite(bestRun)

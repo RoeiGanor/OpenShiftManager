@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 import calendar
+import copy
 import datetime
+import io
 import json
 import os
-import copy
 import random
-import io
+
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from httplib2 import Http
-from oauth2client import file, client, tools
+from oauth2client import client, file, tools
 
-SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/calendar']
+SCOPES = ['https://www.googleapis.com/auth/drive',
+          'https://www.googleapis.com/auth/calendar']
 
 # The precentage of all days in month that it fair to have difference between
 # you and the minimal placement people
@@ -43,6 +45,8 @@ def initializeDays():
     if(today.month + 1 > 12):
         month = 1
         year = today.year + 1
+    else:
+        month += 1
 
     global daysRange
     daysRange = calendar.monthrange(year, month)
@@ -153,7 +157,7 @@ def getConstraintsFromDrive():
 
     file_id = 'X'
     request = service.files().export_media(fileId=file_id,
-                                             mimeType='text/csv')
+                                           mimeType='text/csv')
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
@@ -163,20 +167,22 @@ def getConstraintsFromDrive():
 
     csvf = fh.getvalue()
     rows = csvf.split("\r\n")
-    
+
     COLS = rows[0].split(",")
     global CONSTRAINTS
     CONSTRAINTS = {"peoples": []}
-    for i in xrange(1,len(rows)):
+    for i in xrange(1, len(rows)):
         row = rows[i]
         CONSTRAINTS["peoples"].append({})
         for col in xrange(len(row.split(","))):
             if COLS[col] == "constraints":
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = row.split(",")[col].split(" ")
-                constraintsLength = len(CONSTRAINTS["peoples"][i - 1][COLS[col]])
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = map(int,CONSTRAINTS["peoples"][i - 1][COLS[col]])
+                CONSTRAINTS["peoples"][i - 1][COLS[col]
+                                              ] = row.split(",")[col].split(" ")
+                CONSTRAINTS["peoples"][i - 1][COLS[col]
+                                              ] = map(int, CONSTRAINTS["peoples"][i - 1][COLS[col]])
             elif COLS[col] == "count":
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = int(row.split(",")[col])
+                CONSTRAINTS["peoples"][i - 1][COLS[col]
+                                              ] = int(row.split(",")[col])
             else:
                 CONSTRAINTS["peoples"][i - 1][COLS[col]] = row.split(",")[col]
 
@@ -190,22 +196,26 @@ def sendInvite(bestRun):
         creds = tools.run_flow(flow, store)
     service = build('calendar', 'v3', http=creds.authorize(Http()))
 
-    shiftsSummary = ['תורנות בוקר','תורנות לילה','תורנות שבת']
+    shiftsSummary = ['תורנות בוקר', 'תורנות לילה', 'תורנות שבת']
 
     for dayIndex in xrange(len(days) - 1):
         if bestRun['placements'][days[dayIndex]] != 'Unresolved':
             if "@" in bestRun['placements'][days[dayIndex]]['email']:
                 eventObj = {}
-                eventObj["start"] = {"dateTime": getDateString(days[dayIndex]),"timeZone": "Asia/Jerusalem"}
+                eventObj["start"] = {"dateTime": getDateString(
+                    days[dayIndex]), "timeZone": "Asia/Jerusalem"}
                 eventObj["end"] = {}
-                eventObj["end"] = {"dateTime": getDateString(days[dayIndex + 1]),"timeZone": "Asia/Jerusalem"}
-                eventObj["attendees"] = [{"email":bestRun['placements'][days[dayIndex]]['email']}]
-                eventObj["summary"] = shiftsSummary[getEventType(days[dayIndex])]
+                eventObj["end"] = {"dateTime": getDateString(
+                    days[dayIndex + 1]), "timeZone": "Asia/Jerusalem"}
+                eventObj["attendees"] = [
+                    {"email": bestRun['placements'][days[dayIndex]]['email']}]
+                eventObj["summary"] = shiftsSummary[getEventType(
+                    days[dayIndex])]
 
-                output = service.events().insert(calendarId='primary', body=eventObj).execute()
+                service.events().insert(calendarId='primary', body=eventObj).execute()
 
 def getEventType(day):
-    if day.weekday() in [4,5]:
+    if day.weekday() in [4, 5]:
         return 2
     if str(day.hour) == '20':
         return 1
@@ -254,5 +264,5 @@ if __name__ == '__main__':
     print("#######################")
     for people in bestRun["peoples"]:
         print(people["Name"] + ":" + str(people["count"]))
-    
+
     sendInvite(bestRun)

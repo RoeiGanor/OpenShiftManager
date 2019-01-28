@@ -8,6 +8,7 @@ import json
 import mimetypes
 import os
 import random
+import operator
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -27,7 +28,7 @@ shiftsSummary = ['תורנות בוקר', 'תורנות לילה', 'תורנות
 # The precentage of all days in month that it fair to have difference between
 # you and the minimal placement people
 global fairnessLevel
-fairnessLevel = 5
+fairnessLevel = 20
 
 global NIGHT_TIME
 NIGHT_TIME = 20
@@ -39,10 +40,10 @@ global unresolvedCount
 unresolvedCount = 0
 
 global SHIFT_POINTS
-SHIFT_POINTS = [2, 1.5, 3]  # Day, night, weekend
+SHIFT_POINTS = [1, 2, 4]  # Day, night, weekend
 
 global ITERATIONS_TIMES
-ITERATIONS_TIMES = 100
+ITERATIONS_TIMES = 1500
 
 
 def initializeDays():
@@ -149,7 +150,7 @@ def canBePlaced(day, people):
 
 # Get the lowest placement count
 def getMinimum():
-    min = daysRange[1] + 1
+    min = len(days) + 1
     for people in peoples:
         if(people["Count"] < min):
             min = people["Count"]
@@ -217,7 +218,7 @@ def sendInvite(bestRun):
                 eventObj["end"] = {"dateTime": getDateString(
                     days[dayIndex + 1]), "timeZone": "Asia/Jerusalem"}
                 eventObj["attendees"] = [
-                    {"Email": bestRun['placements'][days[dayIndex]]['Email']}]
+                    {"email": bestRun['placements'][days[dayIndex]]['Email']}]
                 eventObj["summary"] = shiftsSummary[getEventType(
                     days[dayIndex])]
 
@@ -313,13 +314,32 @@ def getservice(api,version):
     service = build(api, version, http=creds.authorize(Http()))
     return service
 
+def utility(run):
+    const = float(10)/ float(62)
+    res = const * float(run["unresolved"])
+
+    min = float("infinity")
+    for people in run["peoples"]:
+        if people["Count"] < min:
+            min = people["Count"]
+
+    sum_of_diff = 0
+    for people in run["peoples"]:
+        sum_of_diff += people["Count"] - min
+    avg = sum_of_diff / len(run["peoples"])
+
+    avg_diff = const * float(avg)
+    return (3 * res) + avg_diff
+
 if __name__ == '__main__':
     initializeDays()
     getConstraintsFromDrive()
     times = 0
     iterations = []
-    unresolved = -1
-    while unresolved != 0 and times < ITERATIONS_TIMES:
+    maxUtil = float("infinity")
+    #unresolved = -1
+    bestRun = None
+    for times in xrange(ITERATIONS_TIMES):
         global peoples
         peoples = copy.deepcopy(CONSTRAINTS)
         peoples = peoples["peoples"]
@@ -327,18 +347,24 @@ if __name__ == '__main__':
         placement = {}
         unresolvedCount = 0
         recursiveBackTracking(days[index], index)
-        iterations.append({"placements": copy.deepcopy(
-            placement), "unresolved": copy.deepcopy(unresolvedCount), "peoples": peoples})
-        unresolved = unresolvedCount
-        print times
-        times += 1
+        currRun = {"placements": copy.deepcopy(placement), "unresolved": copy.deepcopy(unresolvedCount), "peoples": peoples}
+        utilValue = utility(currRun)
+        #iterations.append({"placements
+        #    placement), "unresolved": copy.deepcopy(unresolvedCount), "peoples": peoples})
+        
+        if utilValue < maxUtil:
+            maxUtil = utilValue
+            bestRun = currRun
 
-    minUnResolved = len(days) + 1
-    bestRun = {}
-    for iteration in iterations:
-        if iteration["unresolved"] < minUnResolved:
-            minUnResolved = iteration["unresolved"]
-            bestRun = copy.deepcopy(iteration)
+        #unresolved = unresolvedCount
+        print times
+
+    #minUnResolved = len(days) + 1
+    #bestRun = {}
+    #for iteration in iterations:
+    #    if iteration["unresolved"] < minUnResolved:
+    #        minUnResolved = iteration["unresolved"]
+    #        bestRun = copy.deepcopy(iteration)
 
     for day in days:
         print("" + str(day) + "  " + str(bestRun["placements"][day]))
@@ -347,6 +373,9 @@ if __name__ == '__main__':
     for people in bestRun["peoples"]:
         print(people["Name"] + ":" + str(people["Count"]))
 
-    #sendInvite(bestRun)
-    path = createCSV(bestRun)
-    sendMesseage(bestRun,path)
+    response = 'n'
+    response = raw_input("commit? [y/n]")
+    if response == 'y':
+        sendInvite(bestRun)
+        path = createCSV(bestRun)
+        sendMesseage(bestRun,path)

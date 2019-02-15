@@ -49,7 +49,6 @@ SHIFT_POINTS = [int(config['SHIFT_POINTS']['DAY']), int(config['SHIFT_POINTS']['
 global ITERATIONS_TIMES
 ITERATIONS_TIMES = int(config['DEFAULT']['ITERATIONS_TIMES'])
 
-
 def initializeDays():
     today = datetime.datetime.now()
 
@@ -127,6 +126,23 @@ def recursiveBackTracking(day, index):
 
     return False
 
+def utility(run):
+    const = float(10)/ float(62)
+    res = const * float(run["unresolved"])
+
+    min = float("infinity")
+    for people in run["peoples"]:
+        if people["Count"] < min:
+            min = people["Count"]
+
+    sum_of_diff = 0
+    for people in run["peoples"]:
+        sum_of_diff += people["Count"] - min
+    avg = sum_of_diff / len(run["peoples"])
+
+    avg_diff = const * float(avg)
+    return (3 * res) + avg_diff
+
 # Check if people can be place in this day
 def canBePlaced(day, people):
 
@@ -162,7 +178,7 @@ def getMinimum():
 
 def getConstraintsFromDrive():
     service = getservice('drive', 'v3')
-    file_id = 'X'
+    file_id = str(config['DEFAULT']['CONSTRAINTS_FILE'])
     request = service.files().export_media(fileId=file_id, mimeType='text/csv')
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
@@ -263,8 +279,8 @@ def sendMesseage(bestRun,path):
 
     message = MIMEMultipart()
     msg = MIMEText(body)
-    message['to'] = 'X'
-    message['from'] = 'X'
+    message['to'] = str(config['DEFAULT']['EMAIL'])
+    message['from'] = str(config['DEFAULT']['EMAIL'])
     message['subject'] = str(days[0])
     message.attach(msg)
 
@@ -318,22 +334,30 @@ def getservice(api,version):
     service = build(api, version, http=creds.authorize(Http()))
     return service
 
-def utility(run):
-    const = float(10)/ float(62)
-    res = const * float(run["unresolved"])
+def print_finished(bestRun):
+    for day in days:
+        print("" + str(day) + "  " + str(bestRun["placements"][day]))
 
-    min = float("infinity")
-    for people in run["peoples"]:
-        if people["Count"] < min:
-            min = people["Count"]
+    print("#######################")
+    for people in bestRun["peoples"]:
+        print(people["Name"] + ":" + str(people["Count"]))
 
-    sum_of_diff = 0
-    for people in run["peoples"]:
-        sum_of_diff += people["Count"] - min
-    avg = sum_of_diff / len(run["peoples"])
+    print("Unresolved count:" + str(bestRun['unresolved']))
 
-    avg_diff = const * float(avg)
-    return (3 * res) + avg_diff
+    if bestRun['unresolved'] != 0:
+        for day in days:
+            if bestRun['placements'][day] == 'Unresolved':
+                print(day.strftime('%d-%m-%Y'))
+
+def post_placement(bestRun):
+
+    path = createCSV(bestRun)
+    response = 'n'
+    response = raw_input("commit? [y/n]")
+    if response == 'y':
+        sendInvite(bestRun)
+        #path = createCSV(bestRun)
+        sendMesseage(bestRun,path)
 
 if __name__ == '__main__':
     initializeDays()
@@ -370,16 +394,5 @@ if __name__ == '__main__':
     #        minUnResolved = iteration["unresolved"]
     #        bestRun = copy.deepcopy(iteration)
 
-    for day in days:
-        print("" + str(day) + "  " + str(bestRun["placements"][day]))
-
-    print("#######################")
-    for people in bestRun["peoples"]:
-        print(people["Name"] + ":" + str(people["Count"]))
-
-    response = 'n'
-    response = raw_input("commit? [y/n]")
-    if response == 'y':
-        sendInvite(bestRun)
-        path = createCSV(bestRun)
-        sendMesseage(bestRun,path)
+    print_finished(bestRun)
+    post_placement(bestRun)

@@ -18,6 +18,10 @@ from googleapiclient.http import MediaIoBaseDownload
 from httplib2 import Http
 from oauth2client import client, file, tools
 
+import configparser
+config = configparser.ConfigParser()
+config.read('config.ini')
+
 SCOPES = ['https://www.googleapis.com/auth/drive',
           'https://www.googleapis.com/auth/calendar',
           'https://mail.google.com/	']
@@ -28,10 +32,10 @@ shiftsSummary = ['תורנות בוקר', 'תורנות לילה', 'תורנות
 # The precentage of all days in month that it fair to have difference between
 # you and the minimal placement people
 global fairnessLevel
-fairnessLevel = 20
+fairnessLevel = int(config['DEFAULT']['fairnessLevel'])
 
 global NIGHT_TIME
-NIGHT_TIME = 20
+NIGHT_TIME = int(config['DEFAULT']['NIGHT_TIME'])
 
 global placement
 placement = {}
@@ -40,10 +44,10 @@ global unresolvedCount
 unresolvedCount = 0
 
 global SHIFT_POINTS
-SHIFT_POINTS = [1, 2, 4]  # Day, night, weekend
+SHIFT_POINTS = [int(config['SHIFT_POINTS']['DAY']), int(config['SHIFT_POINTS']['NIGHT']), int(config['SHIFT_POINTS']['WEEKEND'])]  # Day, night, weekend
 
 global ITERATIONS_TIMES
-ITERATIONS_TIMES = 1500
+ITERATIONS_TIMES = int(config['DEFAULT']['ITERATIONS_TIMES'])
 
 
 def initializeDays():

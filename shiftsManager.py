@@ -234,6 +234,7 @@ def send_invite(bestRun):
                     {"email": bestRun['placements'][days[dayIndex]]['Email']}]
                 eventObj["summary"] = shiftsSummary[get_event_type(
                     days[dayIndex])]
+                eventObj["transparency"] = "transparent"
 
                 service.events().insert(calendarId='primary', body=eventObj).execute()
 

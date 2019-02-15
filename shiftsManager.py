@@ -26,27 +26,14 @@ SCOPES = ['https://www.googleapis.com/auth/drive',
           'https://www.googleapis.com/auth/calendar',
           'https://mail.google.com/	']
 
-global shiftsSummary
-shiftsSummary = ['תורנות בוקר', 'תורנות לילה', 'תורנות שבת']
-
 # The precentage of all days in month that it fair to have difference between
 # you and the minimal placement people
-global fairnessLevel
 fairnessLevel = int(config['DEFAULT']['fairnessLevel'])
-
-global NIGHT_TIME
+shiftsSummary = ['תורנות בוקר', 'תורנות לילה', 'תורנות שבת']
 NIGHT_TIME = int(config['DEFAULT']['NIGHT_TIME'])
-
-global placement
 placement = {}
-
-global unresolvedCount
 unresolvedCount = 0
-
-global SHIFT_POINTS
 SHIFT_POINTS = [int(config['SHIFT_POINTS']['DAY']), int(config['SHIFT_POINTS']['NIGHT']), int(config['SHIFT_POINTS']['WEEKEND'])]  # Day, night, weekend
-
-global ITERATIONS_TIMES
 ITERATIONS_TIMES = int(config['DEFAULT']['ITERATIONS_TIMES'])
 
 def initialize_days():
@@ -225,15 +212,11 @@ def send_invite(bestRun):
         if bestRun['placements'][days[dayIndex]] != 'Unresolved':
             if "@" in bestRun['placements'][days[dayIndex]]['Email']:
                 eventObj = {}
-                eventObj["start"] = {"dateTime": get_date_string(
-                    days[dayIndex]), "timeZone": "Asia/Jerusalem"}
+                eventObj["start"] = {"dateTime": get_date_string(days[dayIndex]), "timeZone": "Asia/Jerusalem"}
                 eventObj["end"] = {}
-                eventObj["end"] = {"dateTime": get_date_string(
-                    days[dayIndex + 1]), "timeZone": "Asia/Jerusalem"}
-                eventObj["attendees"] = [
-                    {"email": bestRun['placements'][days[dayIndex]]['Email']}]
-                eventObj["summary"] = shiftsSummary[get_event_type(
-                    days[dayIndex])]
+                eventObj["end"] = {"dateTime": get_date_string(days[dayIndex + 1]), "timeZone": "Asia/Jerusalem"}
+                eventObj["attendees"] = [{"email": bestRun['placements'][days[dayIndex]]['Email']}]
+                eventObj["summary"] = shiftsSummary[get_event_type(days[dayIndex])]
                 eventObj["transparency"] = "transparent"
 
                 service.events().insert(calendarId='primary', body=eventObj).execute()
@@ -299,7 +282,7 @@ def create_csv(bestRun):
     headers = 'טלפון,שם,סוג,יום,תאריך'
     headers += '\n'
     content = ''
-    
+
     for day in days:
         if bestRun['placements'][day] == 'Unresolved':
             content += 'Unresolved,Unresolved,'

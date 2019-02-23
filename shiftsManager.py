@@ -237,7 +237,7 @@ def get_constraints_from_drive():
 
 def send_invite(bestRun):
     service = get_service('calendar','v3')
-
+    colors = ['4','10','11']
     for dayIndex in xrange(len(days) - 1):
         if bestRun['placements'][days[dayIndex]] != 'Unresolved':
             if "@" in bestRun['placements'][days[dayIndex]]['Email']:
@@ -246,9 +246,10 @@ def send_invite(bestRun):
                 eventObj["end"] = {}
                 eventObj["end"] = {"dateTime": get_date_string(days[dayIndex + 1]), "timeZone": "Asia/Jerusalem"}
                 eventObj["attendees"] = [{"email": bestRun['placements'][days[dayIndex]]['Email']}]
-                eventObj["summary"] = shiftsSummary[get_event_type(days[dayIndex])]
+                event_type = get_event_type(days[dayIndex])
+                eventObj["summary"] = shiftsSummary[event_type]
+                eventObj['colorId'] = colors[event_type]
                 eventObj["transparency"] = "transparent"
-
                 service.events().insert(calendarId='primary', body=eventObj).execute()
 
 def get_event_type(day):

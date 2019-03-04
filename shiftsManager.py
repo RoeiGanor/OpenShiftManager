@@ -138,7 +138,7 @@ def utility(run):
     avg = sum_of_diff / len(run["peoples"])
 
     avg_diff = float(avg)
-    return const * (res + avg_diff * 2.1)
+    return const * res + float(pow((const * avg_diff),2))
 
 # Check if people can be place in this day
 def can_be_placed(day, people,team):
@@ -412,6 +412,7 @@ if __name__ == '__main__':
             
             index = 0
             placement = template
+            global unresolvedCount
             unresolvedCount = 0
             recursive_backtracking(days[index], index,team)
             currRun = {"placements": copy.deepcopy(placement), "unresolved": copy.deepcopy(unresolvedCount), "peoples": peoples}
@@ -428,4 +429,5 @@ if __name__ == '__main__':
     for team in teams:
         print (team)
         print_finished(teams_best_runs[team])
+    for team in teams:
         post_placement(teams_best_runs[team],team)

@@ -177,6 +177,9 @@ def get_minimum():
     return min
 
 def get_constraints_from_drive():
+    day_name_array = list(calendar.day_abbr)
+    day_name_array = [x.lower() for x in day_name_array]
+
     service = get_service('drive', 'v3')
     file_id = str(config['DEFAULT']['CONSTRAINTS_FILE'])
     request = service.files().export_media(fileId=file_id, mimeType='text/csv')
@@ -221,6 +224,17 @@ def get_constraints_from_drive():
 
                             # Concatenating the arrays
                             const = const + const_range
+                        elif isinstance(const_value,str) and const_value.lower() in day_name_array:
+                            repeat_const = []
+                            const_value = const_value.lower()
+                            for day in days:
+                                if day_name_array[day.weekday()] == const_value:
+                                    repeat_const.append(day.day)
+
+                            # filter the array to unique value
+                            repeat_const = list(set(repeat_const))
+                            repeat_const.sort()
+                            const = const + repeat_const
                         else:
                             const.append(int(const_value))
 

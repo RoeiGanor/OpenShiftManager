@@ -36,6 +36,10 @@ unresolvedCount = 0
 SHIFT_POINTS = [int(config['SHIFT_POINTS']['DAY']), int(config['SHIFT_POINTS']['NIGHT']), int(config['SHIFT_POINTS']['WEEKEND'])]  # Day, night, weekend
 ITERATIONS_TIMES = int(config['DEFAULT']['ITERATIONS_TIMES'])
 
+class person:
+  def __init__(self, name):
+    self.name = name
+
 def initialize_days():
     today = datetime.datetime.now()
 

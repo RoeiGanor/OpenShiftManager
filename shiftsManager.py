@@ -29,16 +29,37 @@ SCOPES = ['https://www.googleapis.com/auth/drive',
 # The precentage of all days in month that it fair to have difference between
 # you and the minimal placement people
 fairnessLevel = int(config['DEFAULT']['fairnessLevel'])
-shiftsSummary = ['תורנות בוקר', 'תורנות לילה', 'תורנות שבת']
+shiftsSummary = ['Morning Shift', 'Night Shift', 'Weekend Shift']
 NIGHT_TIME = int(config['DEFAULT']['NIGHT_TIME'])
 placement = {}
 unresolvedCount = 0
 SHIFT_POINTS = [int(config['SHIFT_POINTS']['DAY']), int(config['SHIFT_POINTS']['NIGHT']), int(config['SHIFT_POINTS']['WEEKEND'])]  # Day, night, weekend
 ITERATIONS_TIMES = int(config['DEFAULT']['ITERATIONS_TIMES'])
 
+# TODO: Change all of the dict ocurrence to this object
 class person:
-  def __init__(self, name):
-    self.name = name
+    name = ''
+    phone = ''
+    email = ''
+    canWeekend = ''
+    canNights = ''
+    constraints = ''
+    team = ''
+    count = ''
+    #def __init__(self):
+    #    pass
+    def __str__(self):
+        print 'name: {}, phone: {}, email: {}, canWeekend: {}, canNights: {}, constraints: {}, team: {}, count: {}'.format(
+                self.name, self.phone, self.email, self.canWeekend, self.canNights, self.constraints, self.team, self.count)
+    def __init__(self, name = '', phone = '', email = '', canWeekend = True, canNights = True, constraints = [], team = [], count = 0):
+        self.name = name
+        self.phone = phone
+        self.email = email
+        self.canWeekend = canWeekend
+        self.canNights = canNights
+        self.constraints = constraints
+        self.team = team
+        self.count = count
 
 def initialize_days():
     today = datetime.datetime.now()
@@ -83,6 +104,7 @@ def get_shift_score(shift):
 
     return score
 
+# TODO: Re-think this shit
 def recursive_backtracking(day, index,team):
 
     i = 0
@@ -196,19 +218,18 @@ def get_constraints_from_drive():
 
     rows = fh.getvalue().split("\r\n")
 
-    COLS = rows[0].split(",")
-    global CONSTRAINTS
-    CONSTRAINTS = {"peoples": []}
+    COLUMN_HEADERS = rows[0].split(",")
+
+    people_array = []
 
     # i for rows, each row is a person in the csv
     for i in xrange(1, len(rows)):
-
+        p = person()
         row = rows[i]
-        CONSTRAINTS["peoples"].append({})
 
         # col for column in the csv.
         for col in xrange(len(row.split(","))):
-            if COLS[col] == "Constraints":
+            if COLUMN_HEADERS[col] == "constraints":
                 # constraint_col is an array of strings
                 constraint_col = row.split(",")[col].split(' ')
                 const = []
@@ -242,16 +263,19 @@ def get_constraints_from_drive():
                         else:
                             const.append(int(const_value))
 
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = const
+                p.constraints = const
 
-            elif COLS[col] == "Count":
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = int(row.split(",")[col])
-            elif COLS[col] == 'Team':
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = row.split(",")[col].split(' ')
-            else:
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = row.split(",")[col]
+            elif COLUMN_HEADERS[col] == "count":
+                p.count = int(row.split(",")[col])
 
-    print(CONSTRAINTS)
+            elif COLUMN_HEADERS[col] == 'team':
+                p.team = row.split(",")[col].split(' ')
+
+            elif hasattr(p, COLUMN_HEADERS[col]):
+                setattr(p, COLUMN_HEADERS[col], row.split(",")[col])
+
+        people_array.append(p)
+    return people_array
 
 def send_invite(bestRun):
     service = get_service('calendar','v3')
@@ -387,10 +411,10 @@ def post_placement(bestRun,team):
         send_invite(bestRun)
         send_message(bestRun,path)
 
-def get_teams(people):
+def get_teams(people_array):
     teams = []
-    for person in people['peoples']:
-        for team in person['Team']:
+    for p in people_array:
+        for team in p.team:
             if team not in teams:
                 teams.append(team)
 
@@ -398,19 +422,18 @@ def get_teams(people):
 
 if __name__ == '__main__':
     initialize_days()
-    get_constraints_from_drive()
+    people_array = get_constraints_from_drive()
     times = 0
     iterations = []
 
-    teams = get_teams(CONSTRAINTS)
+    teams = get_teams(people_array)
     teams_best_runs = {}
     for team in teams:
 
         minUtil = float("infinity")
         bestRun = None
 
-        teams_people = copy.deepcopy(CONSTRAINTS)
-        teams_people = teams_people["peoples"]
+        teams_people = copy.deepcopy(people_array)
 
         # Check if people is existing in more than one team, if he does then copy all of his shift from the already placed team
         # to the new team and delete him from the new team available people to place
@@ -426,6 +449,8 @@ if __name__ == '__main__':
                                     teams_people.pop(people_to_remove_index)
 
         peoples = teams_people
+
+        # TODO: Delete this shit
         for times in xrange(ITERATIONS_TIMES):
             
             index = 0

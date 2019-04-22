@@ -9,6 +9,7 @@ import mimetypes
 import os
 import random
 import operator
+import math
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -41,25 +42,25 @@ class person:
     name = ''
     phone = ''
     email = ''
-    canWeekend = ''
-    canNights = ''
-    constraints = ''
-    team = ''
+    canWeekend = True
+    canNights = True
+    constraints = []
+    team = []
     count = 0
-    #def __init__(self):
-    #    pass
+
+    def __init__(self, name = '', phone = '', email = '', canWeekend = True, canNights = True, constraints = [], team = [], count = 0):
+        self.name = name   # String
+        self.phone = phone # String
+        self.email = email # String
+        self.canWeekend = canWeekend # Boolean
+        self.canNights = canNights # Boolean
+        self.constraints = constraints # Array of dates [1,2,3]
+        self.team = team # Array of teams
+        self.count = count # int
+
     def __str__(self):
         print 'name: {}, phone: {}, email: {}, canWeekend: {}, canNights: {}, constraints: {}, team: {}, count: {}'.format(
                 self.name, self.phone, self.email, self.canWeekend, self.canNights, self.constraints, self.team, self.count)
-    def __init__(self, name = '', phone = '', email = '', canWeekend = True, canNights = True, constraints = [], team = [], count = 0):
-        self.name = name
-        self.phone = phone
-        self.email = email
-        self.canWeekend = canWeekend
-        self.canNights = canNights
-        self.constraints = constraints
-        self.team = team
-        self.count = count
 
 def initialize_days():
     today = datetime.datetime.now()
@@ -105,7 +106,7 @@ def get_shift_score(shift):
     return score
 
 # TODO: Re-think this shit
-def recursive_backtracking(day, index,team):
+def recursive_backtracking(day, index,team): # return { day: person/None}
 
     i = 0
     random.shuffle(peoples)
@@ -149,22 +150,39 @@ def recursive_backtracking(day, index,team):
 
     return False
 
-def utility(run):
-    const = float(10)/ float(62)
-    res = float(run["unresolved"])
+def utility(run, people_array):
+    #const = float(10)/ float(62)
+    #res = float(run["unresolved"])
+#
+    #min = float("infinity")
+    #for people in run["peoples"]:
+    #    if people["Count"] < min:
+    #        min = people["Count"]
+#
+    #sum_of_diff = 0
+    #for people in run["peoples"]:
+    #    sum_of_diff += people["Count"] - min
+    #avg = sum_of_diff / len(run["peoples"])
+#
+    #avg_diff = float(avg)
+    #return const * res + float(pow((const * avg_diff),2))
 
-    min = float("infinity")
-    for people in run["peoples"]:
-        if people["Count"] < min:
-            min = people["Count"]
+    run_unresolved = 0
+    for day in days:
+        if run[day] == None:
+            run_unresolved +=1
 
-    sum_of_diff = 0
-    for people in run["peoples"]:
-        sum_of_diff += people["Count"] - min
-    avg = sum_of_diff / len(run["peoples"])
+    count_sum = 0
+    for p in people_array:
+        count_sum += p.count
+    count_avg = count_sum / len(people_array)
 
-    avg_diff = float(avg)
-    return const * res + float(pow((const * avg_diff),2))
+    variance = 0
+    for p in people_array:
+        variance += pow(p.count - count_avg, 2)
+    variance = math.sqrt(float(variance) / len(people_array)) # Higher mean least equal placement 
+
+    return 10 * run_unresolved + variance # Higher is worst
 
 # Check if people can be place in this day
 def can_be_placed(day, people,team):
@@ -459,7 +477,7 @@ if __name__ == '__main__':
             unresolvedCount = 0
             recursive_backtracking(days[index], index,team)
             currRun = {"placements": copy.deepcopy(placement), "unresolved": copy.deepcopy(unresolvedCount), "peoples": peoples}
-            utilValue = utility(currRun)
+            utilValue = utility(currRun, people_array)
 
             if utilValue < minUtil:
                 minUtil = utilValue

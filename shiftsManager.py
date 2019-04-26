@@ -128,7 +128,7 @@ def hill_climbing(people_array, running_team, running_times = 10000):
             placement = temp_placement
             placement_utility = temp_op_utility
 
-        print run_index
+        print running_team + " - " + str(run_index)
         run_index += 1
 
     return placement
@@ -251,22 +251,23 @@ def get_constraints_from_drive():
         people_array.append(p)
     return people_array
 
-def send_invite(bestRun):
+def send_invite(placement):
     service = get_service('calendar','v3')
     colors = ['4','10','11']
-    for dayIndex in xrange(len(days) - 1):
-        if bestRun['placements'][days[dayIndex]] != 'Unresolved':
-            if "@" in bestRun['placements'][days[dayIndex]]['Email']:
+    for day_index in xrange(len(days) - 1):
+        if placement[days[day_index]]: # If its not None - there is people in this day
+            if "@" in placement[days[day_index]].email:
                 eventObj = {}
-                eventObj["start"] = {"dateTime": get_date_string(days[dayIndex]), "timeZone": "Asia/Jerusalem"}
+                eventObj["start"] = {"dateTime": get_date_string(days[day_index]), "timeZone": "Asia/Jerusalem"}
                 eventObj["end"] = {}
-                eventObj["end"] = {"dateTime": get_date_string(days[dayIndex + 1]), "timeZone": "Asia/Jerusalem"}
-                eventObj["attendees"] = [{"email": bestRun['placements'][days[dayIndex]]['Email']}]
-                event_type = get_event_type(days[dayIndex])
+                eventObj["end"] = {"dateTime": get_date_string(days[day_index + 1]), "timeZone": "Asia/Jerusalem"}
+                eventObj["attendees"] = [{"email": placement[days[day_index]].email}]
+                event_type = get_event_type(days[day_index])
                 eventObj["summary"] = shiftsSummary[event_type]
                 eventObj['colorId'] = colors[event_type]
                 eventObj["transparency"] = "transparent"
-                service.events().insert(calendarId='primary', body=eventObj).execute()
+                event = service.events().insert(calendarId='primary', body=eventObj).execute()
+                print 'Event ' + event['id'] + ' sent successfully to ' + event['attendees'][0]['email']
 
 def get_event_type(day):
     if day.weekday() in [4, 5]:
@@ -288,24 +289,27 @@ def get_date_string(date):
         month = "0" + month
     return str(date.year) + "-" + month + "-" + day + "T" + hour + ":00:00"
 
-def send_message(bestRun,path):
+def send_message(placement, people_array, path, team):
     body = ''
-    for people in bestRun["peoples"]:
-        body += people["Name"] + ":" + str(people["Count"]) + "\n"
+    score_array = calculate_scores(placement, people_array)
+    for people in score_array:
+        body += people + ":" +  str(score_array[people]) + "\n"
 
-    if bestRun['unresolved'] == 0:
-        body += 'You got zero unresolved date to handle!'
-    else:
-        body += 'You got ' + str(bestRun['unresolved']) + ' unresolved date/s, you better handle them before publishing! \n'
-        for day in days:
-            if bestRun['placements'][day] == 'Unresolved':
-                body += day.strftime('%d-%m-%Y')
+    unresolved_count = 0
+    tmp = ''
+    for day in days:
+        if not placement[day]:
+            unresolved_count += 1
+            tmp += day.strftime('%d-%m-%Y') + ", "
+    if unresolved_count > 0:
+        body += 'You got ' + str(unresolved_count) + ' unresolved date/s, you better handle them before publishing! \n'
+        body += tmp
 
     message = MIMEMultipart()
     msg = MIMEText(body)
     message['to'] = str(config['DEFAULT']['EMAIL'])
     message['from'] = str(config['DEFAULT']['EMAIL'])
-    message['subject'] = str(days[0])
+    message['subject'] = team + " - " + days[0].strftime('%d-%m-%Y')
     message.attach(msg)
 
     content_type, encoding = mimetypes.guess_type(path)
@@ -325,27 +329,27 @@ def send_message(bestRun,path):
     message = (service.users().messages().send(userId='me', body=message).execute())
     print 'Message Id: %s' % message['id']
 
-def create_csv(bestRun,team):
+def create_csv(placement, team_name):
     headers = 'טלפון,שם,סוג,יום,תאריך'
     headers += '\n'
     content = ''
 
     for day in days:
-        if bestRun['placements'][day] == 'Unresolved':
+        if not placement[day]:
             content += 'Unresolved,Unresolved,'
             content += shiftsSummary[get_event_type(day)] + ","
             content += day.strftime('%A') + ','
             content += day.strftime('%d-%m-%Y') + '\n'
         else:
-            content += bestRun['placements'][day]['Phone'] + ","
-            content += bestRun['placements'][day]['Name'] + ","
+            content += placement[day].phone + ","
+            content += placement[day].name + ","
             content += shiftsSummary[get_event_type(day)] + ","
             content += day.strftime('%A') + ','
             content += day.strftime('%d-%m-%Y') + '\n'
 
     PATH = '/tmp/'
     PATH += days[0].strftime('%d-%m-%Y')
-    PATH += "-" + str(team)
+    PATH += "-" + str(team_name)
     PATH += '.csv'
     f = open(PATH,'w')
     f.write(headers + content)
@@ -361,29 +365,24 @@ def get_service(api,version):
     service = build(api, version, http=creds.authorize(Http()))
     return service
 
-def print_finished(bestRun):
-    for day in days:
-        print("" + str(day) + "  " + str(bestRun["placements"][day]))
-
-    print("#######################")
-    for people in bestRun["peoples"]:
-        print(people["Name"] + ":" + str(people["Count"]))
-
-    print("Unresolved count:" + str(bestRun['unresolved']))
-
-    if bestRun['unresolved'] != 0:
+def print_finished(team_placement, people_array):
+    for team in team_placement:
+        unresolved_count = 0
         for day in days:
-            if bestRun['placements'][day] == 'Unresolved':
-                print(day.strftime('%d-%m-%Y'))
+            print '{} : {}'.format(day.strftime('%d-%m-%Y'), team_placement[team][day])
+            if team_placement[team][day] == None:
+                unresolved_count += 1
+        print calculate_scores(team_placement[team], people_array)
+        print 'Unresolved count is: {}'.format(unresolved_count)
 
-def post_placement(bestRun,team):
-
-    path = create_csv(bestRun,team)
+def post_placement(team_placement):
     response = 'n'
-    response = raw_input("commit? [y/n]")
+    response = raw_input("commit? [y/n] ")
     if response == 'y':
-        send_invite(bestRun)
-        send_message(bestRun,path)
+        for team in team_placement:
+            path = create_csv(team_placement[team], team)
+            send_invite(team_placement[team])
+            send_message(team_placement[team], people_array, path, team)
 
 def calculate_scores(placement, people_array):
     tmp_counts = {}
@@ -413,14 +412,6 @@ def run(people_array):
     
     for team in teams:
         team_placement[team] = hill_climbing(people_array, team)
-        unresolved_count = 0
-        for day in days:
-            print '{} : {}'.format(day.strftime('%d-%m-%Y'), team_placement[team][day])
-            if team_placement[team][day] == None:
-                unresolved_count += 1
-        print calculate_scores(team_placement[team], people_array)
-        print 'Unresolved count is: {}'.format(unresolved_count)
-        break
 
     return team_placement
 
@@ -429,16 +420,5 @@ if __name__ == '__main__':
     people_array = get_constraints_from_drive()
 
     team_placement = run(people_array)
-
-    #unresolved_count = 0
-    #for day in days:
-    #    print '{} : {}'.format(day.strftime('%d-%m-%Y'), team_placement[team][day])
-    #    if team_placement[team][day] == None:
-    #        unresolved_count += 1
-    #print calculate_scores(team_placement[team], people_array)
-    #print 'Unresolved count is: {}'.format(unresolved_count)
-    
-    #for team in teams:
-    #    print (team)
-    #    print_finished(team_placement[team])
-    #    post_placement(team_placement[team],team)
+    print_finished(team_placement, people_array)
+    post_placement(team_placement)

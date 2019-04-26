@@ -9,6 +9,7 @@ import mimetypes
 import os
 import random
 import operator
+import math
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -28,13 +29,33 @@ SCOPES = ['https://www.googleapis.com/auth/drive',
 
 # The precentage of all days in month that it fair to have difference between
 # you and the minimal placement people
-fairnessLevel = int(config['DEFAULT']['fairnessLevel'])
-shiftsSummary = ['תורנות בוקר', 'תורנות לילה', 'תורנות שבת']
+shiftsSummary = ['Morning Shift', 'Night Shift', 'Weekend Shift']
 NIGHT_TIME = int(config['DEFAULT']['NIGHT_TIME'])
-placement = {}
-unresolvedCount = 0
 SHIFT_POINTS = [int(config['SHIFT_POINTS']['DAY']), int(config['SHIFT_POINTS']['NIGHT']), int(config['SHIFT_POINTS']['WEEKEND'])]  # Day, night, weekend
-ITERATIONS_TIMES = int(config['DEFAULT']['ITERATIONS_TIMES'])
+
+class person:
+    name = ''
+    phone = ''
+    email = ''
+    canWeekend = True
+    canNights = True
+    constraints = []
+    team = []
+    count = 0
+
+    def __init__(self, name = '', phone = '', email = '', canWeekend = True, canNights = True, constraints = [], team = [], count = 0):
+        self.name = name   # String
+        self.phone = phone # String
+        self.email = email # String
+        self.canWeekend = canWeekend # Boolean
+        self.canNights = canNights # Boolean
+        self.constraints = constraints # Array of dates [1,2,3]
+        self.team = team # Array of teams
+        self.count = count # int
+
+    def __str__(self):
+        return 'name: {}, phone: {}, email: {}, canWeekend: {}, canNights: {}, constraints: {}, team: {}, count: {}'.format(
+                self.name, self.phone, self.email, self.canWeekend, self.canNights, self.constraints, self.team, self.count)
 
 def initialize_days():
     today = datetime.datetime.now()
@@ -79,102 +100,81 @@ def get_shift_score(shift):
 
     return score
 
-def recursive_backtracking(day, index,team):
+def random_op(temp_placement, people_array, running_team):
+    legal_placement = False
+    while not legal_placement:
+        random_day = random.choice(days)
+        random_person = random.choice(people_array)
 
-    i = 0
-    random.shuffle(peoples)
+        legal_placement = can_be_placed(random_day, random_person, running_team)
+        
+    temp_placement[random_day] = random_person
 
-    while(i < len(peoples)):
-        isPlaceable = can_be_placed(day, peoples[i],team)
+def hill_climbing(people_array, running_team, running_times = 10000):
+    # inital state
+    placement = {}
+    for day in days:
+        placement[day] = None
 
-        if day in placement:
-            if(index + 1 < len(days)):
-                index += 1
-                answer = recursive_backtracking(days[index], index,team)
-                if answer:
-                    return answer
-            else:
-                return True
+    placement_utility = utility(placement, people_array)
 
-        if(isPlaceable):
+    run_index = 0
+    while run_index < running_times:
+        temp_placement = copy.deepcopy(placement)
+        random_op(temp_placement, people_array, running_team)
+        temp_op_utility = utility(temp_placement, people_array)
 
-            temp = copy.deepcopy(peoples[i])
-            #placement[day] = peoples[i]
-            placement[day] = temp
+        if temp_op_utility < placement_utility:
+            placement = temp_placement
+            placement_utility = temp_op_utility
 
-            score = get_shift_score(day)
-            peoples[i]["Count"] += score
+        print running_team + " - " + str(run_index)
+        run_index += 1
 
-            if(index + 1 < len(days)):
-                index += 1
-                answer = recursive_backtracking(days[index], index,team)
-                if answer:
-                    return answer
-            else:
-                return True
-        i += 1
-    if(i >= len(peoples)):
-        placement[day] = "Unresolved"
-        global unresolvedCount
-        unresolvedCount += 1
-        if(index + 1 < len(days)):
-            index += 1
-            return recursive_backtracking(days[index], index,team)
+    return placement
 
-    return False
+def utility(placement, people_array):
+    tmp_counts = calculate_scores(placement, people_array)
 
-def utility(run):
-    const = float(10)/ float(62)
-    res = float(run["unresolved"])
+    run_unresolved = 0
+    for day in days:
+        if placement[day] == None:
+            run_unresolved +=1
 
-    min = float("infinity")
-    for people in run["peoples"]:
-        if people["Count"] < min:
-            min = people["Count"]
+    count_sum = 0
+    for p in tmp_counts.values():
+        count_sum += p
+    count_avg = count_sum / len(people_array)
 
-    sum_of_diff = 0
-    for people in run["peoples"]:
-        sum_of_diff += people["Count"] - min
-    avg = sum_of_diff / len(run["peoples"])
+    variance = 0
+    for p in tmp_counts.values():
+        variance += pow(p - count_avg, 2)
+    variance = math.sqrt(float(variance) / len(people_array)) # Higher mean least equal placement 
 
-    avg_diff = float(avg)
-    return const * res + float(pow((const * avg_diff),2))
+    del tmp_counts # HACKER MAN
+
+    return 10 * run_unresolved + variance # Higher is worst
 
 # Check if people can be place in this day
-def can_be_placed(day, people,team):
-
-    if not (team in people['Team']):
+def can_be_placed(day, person, team):
+    if not (team in person.team):
         return False
 
-    # Check if he have constraint on this day
-    if (day.day in people["Constraints"]):
+    # Check if person have constraint on this day
+    if day.day in person.constraints:
         return False
 
-    ## If he has placed x days more then the lowest placed person then he cant
-    ## be placed this day.
-    ## X is the toal days in the month divided by the fairness level.
-    ## for example: if the fairness level is 10, and there is 30 days in the month
-    ## then the difference between you and the lowest can be 3 days.
-    #minPlacement = get_minimum()
-    #precentage = float(fairnessLevel) / 100
-    #if(people["Count"] > ((daysRange[1] * precentage) + minPlacement)):
-    #    return False
-
-    if(day.hour == NIGHT_TIME and people["canNights"] == "False"):
+    if day.hour == NIGHT_TIME and person.canNights == 'False':
         return False
 
-    if(day.weekday() in [4, 5] and people["canWeekend"] == "False"):
+    if day.weekday() in [4, 5] and person.canWeekend == 'False':
+        return False
+
+    # thursday night shift count as weekend
+    if day.weekday() == 3 and day.hour == NIGHT_TIME and person.canWeekend == 'False':
         return False
 
     return True
-
-# Get the lowest placement count
-def get_minimum():
-    min = len(days) + 1
-    for people in peoples:
-        if(people["Count"] < min):
-            min = people["Count"]
-    return min
 
 def get_constraints_from_drive():
     day_name_array = list(calendar.day_abbr)
@@ -192,19 +192,18 @@ def get_constraints_from_drive():
 
     rows = fh.getvalue().split("\r\n")
 
-    COLS = rows[0].split(",")
-    global CONSTRAINTS
-    CONSTRAINTS = {"peoples": []}
+    COLUMN_HEADERS = rows[0].split(",")
+
+    people_array = []
 
     # i for rows, each row is a person in the csv
     for i in xrange(1, len(rows)):
-
+        p = person()
         row = rows[i]
-        CONSTRAINTS["peoples"].append({})
 
         # col for column in the csv.
         for col in xrange(len(row.split(","))):
-            if COLS[col] == "Constraints":
+            if COLUMN_HEADERS[col] == "constraints":
                 # constraint_col is an array of strings
                 constraint_col = row.split(",")[col].split(' ')
                 const = []
@@ -213,10 +212,10 @@ def get_constraints_from_drive():
                 if constraint_col[0] == '':
                     const = [0]
                 else:
-                    # Checking for hypen that indecate range
+                    # Checking for hyphen that indicate range
                     for const_value in constraint_col:
                         if '-' in const_value:
-                            # Split the hypen into 2 dates
+                            # Split the hyphen into 2 dates
                             const_range_days = const_value.split('-')
 
                             # Create new array from that days
@@ -238,33 +237,37 @@ def get_constraints_from_drive():
                         else:
                             const.append(int(const_value))
 
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = const
+                p.constraints = const
 
-            elif COLS[col] == "Count":
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = int(row.split(",")[col])
-            elif COLS[col] == 'Team':
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = row.split(",")[col].split(' ')
-            else:
-                CONSTRAINTS["peoples"][i - 1][COLS[col]] = row.split(",")[col]
+            elif COLUMN_HEADERS[col] == "count":
+                p.count = int(row.split(",")[col])
 
-    print(CONSTRAINTS)
+            elif COLUMN_HEADERS[col] == 'team':
+                p.team = row.split(",")[col].split(' ')
 
-def send_invite(bestRun):
+            elif hasattr(p, COLUMN_HEADERS[col]):
+                setattr(p, COLUMN_HEADERS[col], row.split(",")[col])
+
+        people_array.append(p)
+    return people_array
+
+def send_invite(placement):
     service = get_service('calendar','v3')
     colors = ['4','10','11']
-    for dayIndex in xrange(len(days) - 1):
-        if bestRun['placements'][days[dayIndex]] != 'Unresolved':
-            if "@" in bestRun['placements'][days[dayIndex]]['Email']:
+    for day_index in xrange(len(days) - 1):
+        if placement[days[day_index]]: # If its not None - there is people in this day
+            if "@" in placement[days[day_index]].email:
                 eventObj = {}
-                eventObj["start"] = {"dateTime": get_date_string(days[dayIndex]), "timeZone": "Asia/Jerusalem"}
+                eventObj["start"] = {"dateTime": get_date_string(days[day_index]), "timeZone": "Asia/Jerusalem"}
                 eventObj["end"] = {}
-                eventObj["end"] = {"dateTime": get_date_string(days[dayIndex + 1]), "timeZone": "Asia/Jerusalem"}
-                eventObj["attendees"] = [{"email": bestRun['placements'][days[dayIndex]]['Email']}]
-                event_type = get_event_type(days[dayIndex])
+                eventObj["end"] = {"dateTime": get_date_string(days[day_index + 1]), "timeZone": "Asia/Jerusalem"}
+                eventObj["attendees"] = [{"email": placement[days[day_index]].email}]
+                event_type = get_event_type(days[day_index])
                 eventObj["summary"] = shiftsSummary[event_type]
                 eventObj['colorId'] = colors[event_type]
                 eventObj["transparency"] = "transparent"
-                service.events().insert(calendarId='primary', body=eventObj).execute()
+                event = service.events().insert(calendarId='primary', body=eventObj).execute()
+                print 'Event ' + event['id'] + ' sent successfully to ' + event['attendees'][0]['email']
 
 def get_event_type(day):
     if day.weekday() in [4, 5]:
@@ -286,24 +289,27 @@ def get_date_string(date):
         month = "0" + month
     return str(date.year) + "-" + month + "-" + day + "T" + hour + ":00:00"
 
-def send_message(bestRun,path):
+def send_message(placement, people_array, path, team):
     body = ''
-    for people in bestRun["peoples"]:
-        body += people["Name"] + ":" + str(people["Count"]) + "\n"
+    score_array = calculate_scores(placement, people_array)
+    for people in score_array:
+        body += people + ":" +  str(score_array[people]) + "\n"
 
-    if bestRun['unresolved'] == 0:
-        body += 'You got zero unresolved date to handle!'
-    else:
-        body += 'You got ' + str(bestRun['unresolved']) + ' unresolved date/s, you better handle them before publishing! \n'
-        for day in days:
-            if bestRun['placements'][day] == 'Unresolved':
-                body += day.strftime('%d-%m-%Y')
+    unresolved_count = 0
+    tmp = ''
+    for day in days:
+        if not placement[day]:
+            unresolved_count += 1
+            tmp += day.strftime('%d-%m-%Y') + ", "
+    if unresolved_count > 0:
+        body += 'You got ' + str(unresolved_count) + ' unresolved date/s, you better handle them before publishing! \n'
+        body += tmp
 
     message = MIMEMultipart()
     msg = MIMEText(body)
     message['to'] = str(config['DEFAULT']['EMAIL'])
     message['from'] = str(config['DEFAULT']['EMAIL'])
-    message['subject'] = str(days[0])
+    message['subject'] = team + " - " + days[0].strftime('%d-%m-%Y')
     message.attach(msg)
 
     content_type, encoding = mimetypes.guess_type(path)
@@ -323,27 +329,27 @@ def send_message(bestRun,path):
     message = (service.users().messages().send(userId='me', body=message).execute())
     print 'Message Id: %s' % message['id']
 
-def create_csv(bestRun,team):
+def create_csv(placement, team_name):
     headers = 'טלפון,שם,סוג,יום,תאריך'
     headers += '\n'
     content = ''
 
     for day in days:
-        if bestRun['placements'][day] == 'Unresolved':
+        if not placement[day]:
             content += 'Unresolved,Unresolved,'
             content += shiftsSummary[get_event_type(day)] + ","
             content += day.strftime('%A') + ','
             content += day.strftime('%d-%m-%Y') + '\n'
         else:
-            content += bestRun['placements'][day]['Phone'] + ","
-            content += bestRun['placements'][day]['Name'] + ","
+            content += placement[day].phone + ","
+            content += placement[day].name + ","
             content += shiftsSummary[get_event_type(day)] + ","
             content += day.strftime('%A') + ','
             content += day.strftime('%d-%m-%Y') + '\n'
 
     PATH = '/tmp/'
     PATH += days[0].strftime('%d-%m-%Y')
-    PATH += "-" + str(team)
+    PATH += "-" + str(team_name)
     PATH += '.csv'
     f = open(PATH,'w')
     f.write(headers + content)
@@ -359,89 +365,60 @@ def get_service(api,version):
     service = build(api, version, http=creds.authorize(Http()))
     return service
 
-def print_finished(bestRun):
-    for day in days:
-        print("" + str(day) + "  " + str(bestRun["placements"][day]))
-
-    print("#######################")
-    for people in bestRun["peoples"]:
-        print(people["Name"] + ":" + str(people["Count"]))
-
-    print("Unresolved count:" + str(bestRun['unresolved']))
-
-    if bestRun['unresolved'] != 0:
+def print_finished(team_placement, people_array):
+    for team in team_placement:
+        unresolved_count = 0
         for day in days:
-            if bestRun['placements'][day] == 'Unresolved':
-                print(day.strftime('%d-%m-%Y'))
+            print '{} : {}'.format(day.strftime('%d-%m-%Y'), team_placement[team][day])
+            if team_placement[team][day] == None:
+                unresolved_count += 1
+        print calculate_scores(team_placement[team], people_array)
+        print 'Unresolved count is: {}'.format(unresolved_count)
 
-def post_placement(bestRun,team):
-
-    path = create_csv(bestRun,team)
+def post_placement(team_placement):
     response = 'n'
-    response = raw_input("commit? [y/n]")
+    response = raw_input("commit? [y/n] ")
     if response == 'y':
-        send_invite(bestRun)
-        send_message(bestRun,path)
+        for team in team_placement:
+            path = create_csv(team_placement[team], team)
+            send_invite(team_placement[team])
+            send_message(team_placement[team], people_array, path, team)
 
-def get_teams(people):
+def calculate_scores(placement, people_array):
+    tmp_counts = {}
+    for p in people_array:
+        tmp_counts[p.name] = 0
+
+    for day in days:
+        person = placement[day]
+
+        if person:
+            tmp_counts[person.name] += get_shift_score(day)
+
+    return tmp_counts
+
+def get_teams(people_array):
     teams = []
-    for person in people['peoples']:
-        for team in person['Team']:
+    for p in people_array:
+        for team in p.team:
             if team not in teams:
                 teams.append(team)
 
     return teams
 
+def run(people_array):
+    teams = get_teams(people_array)
+    team_placement = {}
+    
+    for team in teams:
+        team_placement[team] = hill_climbing(people_array, team)
+
+    return team_placement
+
 if __name__ == '__main__':
     initialize_days()
-    get_constraints_from_drive()
-    times = 0
-    iterations = []
+    people_array = get_constraints_from_drive()
 
-    teams = get_teams(CONSTRAINTS)
-    teams_best_runs = {}
-    for team in teams:
-
-        minUtil = float("infinity")
-        bestRun = None
-
-        teams_people = copy.deepcopy(CONSTRAINTS)
-        teams_people = teams_people["peoples"]
-
-        # Check if people is existing in more than one team, if he does then copy all of his shift from the already placed team
-        # to the new team and delete him from the new team available people to place
-        template = {}
-        if teams_best_runs != {}:
-                for day in days:
-                    for compare_team in teams_best_runs.keys():
-                        if teams_best_runs[compare_team]['placements'][day] != 'Unresolved':
-                            if team in teams_best_runs[compare_team]['placements'][day]['Team']:
-                                template[day] = copy.deepcopy(teams_best_runs[compare_team]['placements'][day])
-                                people_to_remove_index = teams_people.index(template[day]) if template[day] in teams_people else -1
-                                if people_to_remove_index != -1:
-                                    teams_people.pop(people_to_remove_index)
-
-        peoples = teams_people
-        for times in xrange(ITERATIONS_TIMES):
-            
-            index = 0
-            placement = template
-            global unresolvedCount
-            unresolvedCount = 0
-            recursive_backtracking(days[index], index,team)
-            currRun = {"placements": copy.deepcopy(placement), "unresolved": copy.deepcopy(unresolvedCount), "peoples": peoples}
-            utilValue = utility(currRun)
-
-            if utilValue < minUtil:
-                minUtil = utilValue
-                bestRun = currRun
-
-            print times
-
-        teams_best_runs[team] = copy.deepcopy(bestRun)
-
-    for team in teams:
-        print (team)
-        print_finished(teams_best_runs[team])
-    for team in teams:
-        post_placement(teams_best_runs[team],team)
+    team_placement = run(people_array)
+    print_finished(team_placement, people_array)
+    post_placement(team_placement)

@@ -420,5 +420,6 @@ if __name__ == '__main__':
     people_array = get_constraints_from_drive()
 
     team_placement = run(people_array)
+    
     print_finished(team_placement, people_array)
     post_placement(team_placement)

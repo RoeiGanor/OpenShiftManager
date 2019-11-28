@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 import base64
 import calendar
+import configparser
 import copy
 import datetime
 import io
 import json
+import math
 import mimetypes
+import operator
 import os
 import random
-import operator
-import math
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -18,8 +19,8 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from httplib2 import Http
 from oauth2client import client, file, tools
+from time import sleep
 
-import configparser
 config = configparser.ConfigParser()
 config.read('config.ini')
 
@@ -29,7 +30,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive',
 
 # The precentage of all days in month that it fair to have difference between
 # you and the minimal placement people
-shiftsSummary = ['Morning Shift', 'Night Shift', 'Weekend Shift']
+shiftsSummary = ['משמרת בוקר', 'משמרת לילה', 'סופ"ש']
 NIGHT_TIME = int(config['DEFAULT']['NIGHT_TIME'])
 SHIFT_POINTS = [int(config['SHIFT_POINTS']['DAY']), int(config['SHIFT_POINTS']['NIGHT']), int(config['SHIFT_POINTS']['WEEKEND'])]  # Day, night, weekend
 
@@ -267,6 +268,7 @@ def send_invite(placement):
                 eventObj['colorId'] = colors[event_type]
                 eventObj["transparency"] = "transparent"
                 event = service.events().insert(calendarId='primary', body=eventObj).execute()
+                sleep(2)
                 print 'Event ' + event['id'] + ' sent successfully to ' + event['attendees'][0]['email']
 
 def get_event_type(day):
@@ -369,7 +371,7 @@ def print_finished(team_placement, people_array):
     for team in team_placement:
         unresolved_count = 0
         for day in days:
-            print '{} : {}'.format(day.strftime('%d-%m-%Y'), team_placement[team][day])
+            print '{} : {}'.format(day.strftime('%d-%m-%Y'), team_placement[team][day].email if team_placement[team][day] else 'Unresolved')
             if team_placement[team][day] == None:
                 unresolved_count += 1
         print calculate_scores(team_placement[team], people_array)
@@ -381,19 +383,25 @@ def post_placement(team_placement):
     if response == 'y':
         for team in team_placement:
             path = create_csv(team_placement[team], team)
+    response = raw_input("commit? [y/n] ")
+    if response == 'y':
+        for team in team_placement:
+            path = create_csv(team_placement[team], team)
             send_invite(team_placement[team])
-            send_message(team_placement[team], people_array, path, team)
+            #send_message(team_placement[team], people_array, path, team)
+
+
 
 def calculate_scores(placement, people_array):
     tmp_counts = {}
     for p in people_array:
-        tmp_counts[p.name] = 0
+        tmp_counts[p.email] = 0
 
     for day in days:
         person = placement[day]
 
         if person:
-            tmp_counts[person.name] += get_shift_score(day)
+            tmp_counts[person.email] += get_shift_score(day)
 
     return tmp_counts
 

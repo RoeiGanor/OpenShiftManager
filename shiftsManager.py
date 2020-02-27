@@ -19,7 +19,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from httplib2 import Http
 from oauth2client import client, file, tools
-from time import sleep
+#from time import sleep
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -236,7 +236,8 @@ def get_constraints_from_drive():
                             repeat_const.sort()
                             const = const + repeat_const
                         else:
-                            const.append(int(const_value))
+                            if const_value != '':
+                                const.append(int(const_value))
 
                 p.constraints = const
 
@@ -256,7 +257,7 @@ def send_invite(placement):
     service = get_service('calendar','v3')
     colors = ['4','10','11']
     for day_index in xrange(len(days) - 1):
-        if placement[days[day_index]]: # If its not None - there is people in this day
+        if placement.has_key(days[day_index]): # If its not None - there is people in this day
             if "@" in placement[days[day_index]].email:
                 eventObj = {}
                 eventObj["start"] = {"dateTime": get_date_string(days[day_index]), "timeZone": "Asia/Jerusalem"}
@@ -268,9 +269,10 @@ def send_invite(placement):
                 eventObj['colorId'] = colors[event_type]
                 eventObj["transparency"] = "transparent"
                 event = service.events().insert(calendarId='primary', body=eventObj).execute()
-                sleep(2)
                 print 'Event ' + event['id'] + ' sent successfully to ' + event['attendees'][0]['email']
-
+        else:
+            print days[day_index].strftime('%d-%m-%Y')
+            
 def get_event_type(day):
     if day.weekday() in [4, 5]:
         return 2
@@ -379,18 +381,29 @@ def print_finished(team_placement, people_array):
 
 def post_placement(team_placement):
     response = 'n'
-    response = raw_input("commit? [y/n] ")
+    response = raw_input("commit csv? [y/n] ")
     if response == 'y':
         for team in team_placement:
-            path = create_csv(team_placement[team], team)
-    response = raw_input("commit? [y/n] ")
-    if response == 'y':
-        for team in team_placement:
-            path = create_csv(team_placement[team], team)
-            send_invite(team_placement[team])
-            #send_message(team_placement[team], people_array, path, team)
+            path_to_csv = create_csv(team_placement[team], team)
+            response = raw_input("commit events for team {}? [y/n] ".format(team))
+            if response == 'y':
+                place = load_csv(path_to_csv)
+                send_invite(place)
+                #send_message(team_placement[team], people_array, path, team)
 
+def load_csv(path):
+    f = open(path,'r')
+    csv = f.readlines()
+    f.close()
+    placement = {}
+    for row in xrange(1, len(csv) - 1):
+        phone = csv[row].split(',')[0]
+        date = days[row - 1]
+        if phone != 'Unresolved':
+            person = next(person for person in people_array if person.phone == phone)
+            placement[date] = person
 
+    return placement
 
 def calculate_scores(placement, people_array):
     tmp_counts = {}
